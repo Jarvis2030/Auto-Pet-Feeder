@@ -103,6 +103,7 @@ uint8_t time_setting = 0;
 uint8_t hour, minute;
 uint8_t alarm_set = 0;
 uint8_t countdown = 3;
+uint16_t photo_data;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -418,18 +419,20 @@ time.Seconds = 0;
 		 		}
 		 		break;
 
-		 	case 4: // Done eating
+		 	case 4: // Done eating take photo
 		 		LCD_DrawValue(50, 130, countdown);
+		 		HAL_Delay(1000);
 		 		countdown--;
 		 		 if(!countdown)
 					 if (Ov7725_vsync == 2){
 						 FIFO_PREPARE;
-						 ImagDisp();
+						 photo_data = ImagDisp();
 						 Ov7725_vsync = 0;
 						 Machine_state = 5;
 					}
-		 		 HAL_Delay(1000);
+		 		 
 		 		break;
+		 	case 5: // TODO: Transmit the photo data to user
 
 		 }
 

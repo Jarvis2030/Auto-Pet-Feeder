@@ -190,7 +190,7 @@
 #define OV7725_ID       0x21
 
 ErrorStatus Ov7725_Init(void);
-void ImagDisp(void);
+uint16_t ImagDisp(void);
 
 #endif
 

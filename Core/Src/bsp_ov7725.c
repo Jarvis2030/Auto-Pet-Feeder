@@ -147,7 +147,7 @@ ErrorStatus Ov7725_Init(void)
 	return SUCCESS;
 }
 
-void ImagDisp(void)
+uint16_t ImagDisp(void)
 {
 	uint16_t i, j;
 	uint16_t Camera_Data;
@@ -162,5 +162,6 @@ void ImagDisp(void)
 			LCD_Write_Data(Camera_Data);
 		}
 	}
-	HAL_Delay(1000);
+	HAL_Delay(100);
+	return Camera_Data;
 }
