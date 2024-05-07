@@ -468,7 +468,7 @@ void LCD_DrawValueHex(uint16_t usC, uint16_t usP, uint16_t value)
 }
 
 
-void LCD_DrawValue (uint16_t usC, uint16_t usP, uint16_t value)
+void LCD_DrawValue (uint16_t usC, uint16_t usP, int value)
 {
 	char value_str[50];
 	sprintf(value_str, "%04d", value);

@@ -190,7 +190,8 @@
 #define OV7725_ID       0x21
 
 ErrorStatus Ov7725_Init(void);
-uint16_t ImagDisp(void);
+void ImagDisp(void);
+void ImagDisp2(UART_HandleTypeDef *huart);
 
 #endif
 

@@ -34,34 +34,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := Camera CubeMX sample
+BUILD_ARTIFACT_NAME := Main_Board
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-Camera\ CubeMX\ sample.elf \
+Main_Board.elf \
 
 MAP_FILES += \
-Camera\ CubeMX\ sample.map \
+Main_Board.map \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-Camera\ CubeMX\ sample.list \
+Main_Board.list \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: Camera\ CubeMX\ sample.elf secondary-outputs
+main-build: Main_Board.elf secondary-outputs
 
 # Tool invocations
-Camera\ CubeMX\ sample.elf Camera\ CubeMX\ sample.map: $(OBJS) $(USER_OBJS) /Users/linyuchun/STM32CubeIDE/workspace_1.9.0/Camera\ CubeMX\ sample/STM32F103VETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "Camera CubeMX sample.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"/Users/linyuchun/STM32CubeIDE/workspace_1.9.0/Camera CubeMX sample/STM32F103VETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Camera CubeMX sample.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
+Main_Board.elf Main_Board.map: $(OBJS) $(USER_OBJS) /Users/linyuchun/STM32CubeIDE/workspace_1.9.0/Main_Board/STM32F103VETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Main_Board.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"/Users/linyuchun/STM32CubeIDE/workspace_1.9.0/Main_Board/STM32F103VETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Main_Board.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -70,14 +70,14 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-Camera\ CubeMX\ sample.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "Camera CubeMX sample.list"
+Main_Board.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "Main_Board.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) Camera\ CubeMX\ sample.elf Camera\ CubeMX\ sample.list Camera\ CubeMX\ sample.map Camera\\ CubeMX\\ sample.elf default.size.stdout
+	-$(RM) Main_Board.elf Main_Board.list Main_Board.map default.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)

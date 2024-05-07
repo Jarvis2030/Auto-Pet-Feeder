@@ -54,6 +54,9 @@
 #define TRIG_PORT GPIOE
 #define ECHO_PIN GPIO_PIN_5
 #define ECHO_PORT GPIOE
+
+#define EX_KEY_PIN GPIO_PIN_5
+#define EX_KEY_PORT GPIOA
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -68,6 +71,9 @@ RTC_HandleTypeDef hrtc;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
+
+UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart3;
 
 SRAM_HandleTypeDef hsram1;
 
@@ -98,12 +104,33 @@ uint32_t value2;
 uint32_t menu; // the var that store the ADC value and convert into function
 uint8_t function;
 uint32_t amount;
+int total_weight;
 
-uint8_t time_setting = 0;
+uint8_t setting = 0;
 uint8_t hour, minute;
 uint8_t alarm_set = 0;
 uint8_t countdown = 3;
 uint16_t photo_data;
+
+uint8_t eat = 0;
+
+uint8_t Pindex = 0;
+uint8_t Lindex = 0;
+uint8_t PCInt;
+uint8_t LoraInt;
+uint8_t rxCNT = 0;
+uint8_t FromPCMsgComplete = 0;
+uint8_t FromLoraMsgComplete = 0;
+uint8_t PCMsg[20]; // buffer for LoRa message
+uint8_t testmsg[];
+uint8_t loraMsg[200]; // buffer for LoRa message
+uint8_t size =0;
+int received = 0;
+int activated = 1;
+int display = 0;
+
+uint16_t init_weight;
+uint16_t adjust_disp_weight;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -114,12 +141,68 @@ static void MX_ADC2_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(uint16_t);
+static void MX_USART1_UART_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 volatile uint8_t Ov7725_vsync;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#define DT_PIN GPIO_PIN_12
+#define DT_PORT GPIOC
+#define SCK_PIN GPIO_PIN_2
+#define SCK_PORT GPIOD
+
+uint32_t tare = 8775000;
+float knownOriginal = 133000;  // in milli gram
+float knownHX711 = 535000;
+int weight = 0;
+int disp_weight = 0;
+
+void microDelay(uint16_t delay) {
+	__HAL_TIM_SET_COUNTER(&htim1, 0);
+	while (__HAL_TIM_GET_COUNTER(&htim1) < delay)
+		;
+}
+
+uint32_t getHX711(void) {
+	uint32_t data = 0;
+	uint32_t startTime = HAL_GetTick();
+	while (HAL_GPIO_ReadPin(DT_PORT, DT_PIN) == GPIO_PIN_SET) {
+		if (HAL_GetTick() - startTime > 200)
+			return 0;
+	}
+	for (int8_t len = 0; len < 24; len++) {
+		HAL_GPIO_WritePin(SCK_PORT, SCK_PIN, GPIO_PIN_SET);
+		microDelay(1);
+		data = data << 1;
+		HAL_GPIO_WritePin(SCK_PORT, SCK_PIN, GPIO_PIN_RESET);
+		microDelay(1);
+		if (HAL_GPIO_ReadPin(DT_PORT, DT_PIN) == GPIO_PIN_SET)
+			data++;
+	}
+	data = data ^ 0x800000;
+	HAL_GPIO_WritePin(SCK_PORT, SCK_PIN, GPIO_PIN_SET);
+	microDelay(1);
+	HAL_GPIO_WritePin(SCK_PORT, SCK_PIN, GPIO_PIN_RESET);
+	microDelay(1);
+	return data;
+}
+
+int weigh(void) {
+	int32_t total = 0;
+	int32_t samples = 10;
+	int milligram;
+	float coefficient;
+	for (uint16_t i = 0; i < samples; i++) {
+		total += getHX711();
+	}
+	int32_t average = (uint32_t) (total / samples);
+	coefficient = knownOriginal / knownHX711;
+	milligram = (int) (average - tare) * coefficient;
+	return milligram;
+}
 
 /* USER CODE END 0 */
 
@@ -157,31 +240,66 @@ time.Seconds = 0;
   MX_ADC2_Init();
   MX_RTC_Init();
   MX_TIM1_Init();
-  MX_TIM3_Init(50);
+  MX_TIM3_Init(0);
+  MX_USART1_UART_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
   LCD_INIT();
-//  MPU6050_init();
 
-//  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  HAL_GPIO_WritePin(SCK_PORT, SCK_PIN, GPIO_PIN_SET);
+  HAL_Delay(10);
+  HAL_GPIO_WritePin(SCK_PORT, SCK_PIN, GPIO_PIN_RESET);
+  HAL_Delay(10);
+
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_Base_Start(&htim1);
   HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_RESET);  // pull the TRIG pin low
 
+
+//  HAL_UART_Receive_IT (&huart1, &PCInt, 1);
+  HAL_UART_Receive_IT (&huart3, &LoraInt, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-	
+
 	HAL_ADCEx_Calibration_Start(&hadc2); // turn on the Calibration model
 	HAL_ADC_Start(&hadc2);
 
 	while(Ov7725_Init() != SUCCESS);
 	Ov7725_vsync = 0;
 
+	init_weight = weigh();
+	adjust_disp_weight = init_weight/100;
+
 	  /* USER CODE END 2 */
 
 	  /* Infinite loop */
 	  /* USER CODE BEGIN WHILE */
 	  while (1){
+
+//		  if (FromPCMsgComplete){
+//		     	size = Pindex;
+//		     	HAL_UART_Transmit(&huart1, PCMsg, sizeof(PCMsg), 300); // transmit to PC for display
+//		     	memcpy(testmsg, PCMsg, size);
+//		     	if(HAL_UART_Transmit(&huart3, testmsg, size, 5000) == HAL_OK) {
+//		     		HAL_UART_Receive_IT (&huart3, &LoraInt, 1);
+//		     		test = 1;
+//		     		}// transmit to LoRa for transmit
+//		     	memset(PCMsg, 0, 20); // clear message buffer
+//		     	Pindex = 0;
+//		     	FromPCMsgComplete = 0;
+//		   }
+
+		  if (FromLoraMsgComplete){
+		         HAL_UART_Transmit(&huart1, loraMsg, sizeof(loraMsg), 300); // transmit to PC for display
+		         memset(loraMsg, 0, 200); // clear message buffer
+		         Lindex = 0;
+		         FromLoraMsgComplete = 0;
+		   }
+
+		if(activated){
+
 		  HAL_RTC_GetTime(&hrtc, &getTime, RTC_FORMAT_BIN);
 		  HAL_RTC_GetDate(&hrtc, &getDate, RTC_FORMAT_BIN);
 
@@ -203,6 +321,9 @@ time.Seconds = 0;
 	// -------------------------- Menu selection using VR as controller (ADC convertor)---------------
 		 switch(Machine_state){
 		 	case 0:
+
+		 			  countdown = 3;
+
 		 	  		  LCD_DrawString(50,60, "Select Function:");
 		 	  		  LCD_DrawString(70,75, "Manual mode");
 		 	  		  LCD_DrawString(70,90, "Schedule mode");
@@ -217,7 +338,8 @@ time.Seconds = 0;
 				 		 HAL_Delay(10);
 				 		 LCD_DrawString(50,90, ">>");
 				 	  }
-					 if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_5) == SET){
+					 if(setting){
+						 	setting = 0;
 							function = menu;
 							Machine_state = 1;
 							LCD_Clear (0, 0, 240, 320, 0xFFFF);
@@ -239,7 +361,8 @@ time.Seconds = 0;
 				 	  	 	amount = value2/200;
 				 	  	 	LCD_DrawValue(150,60, 5*amount);
 				 	  	 	LCD_DrawString(200,60, "g");
-				 	  	 	if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_5) == SET){
+				 	  	 	if(setting){
+				 	  	 		setting = 0;
 				 	  			Machine_state = 2;
 				 	  			LCD_Clear (0, 0, 240, 320, 0xFFFF);
 				 	  		}
@@ -249,7 +372,7 @@ time.Seconds = 0;
 
 				 		 LCD_DrawString(50,60, "First Daily Alarm: ");
 
-				 		 if(time_setting == 0){
+				 		 if(setting == 0){
 				 			hour = value2/145;
 				 			if(hour > 24) hour = 24;
 
@@ -260,7 +383,7 @@ time.Seconds = 0;
 				 			LCD_Clear (50, 75, 35, 15, 0xFFFF);
 				 			HAL_Delay(400);
 
-				 		 } else if(time_setting == 1){
+				 		 } else if(setting == 1){
 
 				 			time.Hours = hour;
 
@@ -274,7 +397,7 @@ time.Seconds = 0;
 				 			LCD_Clear (90, 75, 35, 15, 0xFFFF);
 				 			HAL_Delay(400);
 
-				 		 } else if (time_setting == 2){
+				 		 } else if (setting == 2){
 
 				 			time.Minutes = minute;
 
@@ -287,7 +410,7 @@ time.Seconds = 0;
 				 			LCD_DrawValue(150,90, 5*amount);
 				 			LCD_DrawString(200,90, "g");
 
-				 		 }else if(time_setting == 3){
+				 		 }else if(setting == 3){
 
 				 			sAlarm.Alarm = RTC_ALARM_A;
 				 			sAlarm.AlarmTime.Hours = time.Hours;
@@ -297,6 +420,7 @@ time.Seconds = 0;
 				 			if(HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BIN) == HAL_OK){
 				 				alarm_set = 1;
 				 			}
+				 			setting = 0;
 				 			Machine_state = 0;
 				 			LCD_Clear (0, 0, 240, 320, 0xFFFF);
 				 		}
@@ -313,127 +437,99 @@ time.Seconds = 0;
 
 		 		 switch(function){
 		 		 	case 0:
-		 		 		LCD_DrawString(50,60, "Dispatching...");
+		 		 		weight = weigh();
+		 		 		disp_weight = weight/100 - adjust_disp_weight;
 
-		 		 		for(int i = 0; i < amount; i++){
-		 		 			MX_TIM3_Init(250);
-		 		 			HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-		 		 			HAL_Delay(300);
+		 		 		LCD_DrawString(20, 50, "Distributing the food....");
+		 		 		LCD_DrawString(20, 75, "Weight");
+		 		 		LCD_DrawValue(70, 75, disp_weight);
+		 		 		HAL_Delay(1000); // if not then the weight won't be init
 
+		 		 		MX_TIM3_Init(250);
+		 		 		HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+		 		 		HAL_Delay(300);
+
+		 		 		total_weight = 5 * (int)amount;
+		 		 		if(disp_weight >total_weight){
 		 		 			MX_TIM3_Init(50);
 		 		 			HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 		 		 			HAL_Delay(500);
+		 		 			Machine_state = 3;
+		 		 			LCD_Clear (0, 0, 240, 320, 0xFFFF);
 		 		 		}
-		 		 		Machine_state = 3;
-		 		 		LCD_Clear (0, 0, 240, 320, 0xFFFF);
+//
+//		 		 		for(int i = 0; i < amount; i++){
+//		 		 			MX_TIM3_Init(250);
+//		 		 			HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+//		 		 			HAL_Delay(300);
+//
+//		 		 			MX_TIM3_Init(50);
+//		 		 			HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+//		 		 			HAL_Delay(500);
+//		 		 		}
+
 		 		 		break;
 
 		 		 	case 1:
 		 		 			LCD_Clear (0, 0, 240, 320, 0xFFFF);
-		 		 			LCD_DrawString(50,60, "Dispatching...");
-		 		 			MX_TIM3_Init(50);
+		 		 			weight = weigh();
+		 		 			disp_weight = weight/100 - adjust_disp_weight+1;
+
+		 		 			LCD_DrawString(20,50, "Distributing the food...");
+		 		 			LCD_DrawString(20, 75, "Weight");
+		 		 			LCD_DrawValue(70, 75, disp_weight);
+		 		 			HAL_Delay(1000); // if not then the weight won't be init
+
+		 		 			MX_TIM3_Init(250);
 		 		 			HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+		 		 			HAL_Delay(300);
 
-		 		 			if(status){
-		 		 				for(int i = 0; i < amount; i++){
-		 		 				MX_TIM3_Init(250);
-		 		 				HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-		 		 				HAL_Delay(300);
-
+		 		 			total_weight = 5 * (int)amount;
+		 		 			if(disp_weight >total_weight-5){ // leave some buffer
 		 		 				MX_TIM3_Init(50);
 		 		 				HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 		 		 				HAL_Delay(500);
-		 		 				}
 		 		 				Machine_state = 3;
 		 		 				LCD_Clear (0, 0, 240, 320, 0xFFFF);
-		 		 				break;
-		 		 			  }
+		 		 			}
 		 		 }
 	//------------- ----------------------------- Sensing approach and eat ------------------------------------------------
 		 	case 3:
-		 		//------------- ----------------------HCSR04-------------------------------
-		 		HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_SET);  // pull the TRIG pin HIGH
-		 		__HAL_TIM_SET_COUNTER(&htim1, 0);
-		 		while (__HAL_TIM_GET_COUNTER (&htim1) < 10);  // wait for 10 us
-		 		HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_RESET);  // pull the TRIG pin low
-
-		 		pMillis = HAL_GetTick(); // used this to avoid infinite while loop  (for timeout)
-		 			 			      // wait for the echo pin to go high
-		 		while (!(HAL_GPIO_ReadPin (ECHO_PORT, ECHO_PIN)) && pMillis + 10 >  HAL_GetTick());
-		 		Val1 = __HAL_TIM_GET_COUNTER (&htim1);
-
-		 		pMillis = HAL_GetTick(); // used this to avoid infinite while loop (for timeout)
-		 			 			      // wait for the echo pin to go low
-		 		while ((HAL_GPIO_ReadPin (ECHO_PORT, ECHO_PIN)) && pMillis + 50 > HAL_GetTick());
-		 		Val2 = __HAL_TIM_GET_COUNTER (&htim1);
-
-		 		Distance = (Val2-Val1)* 0.034/2;
-		 		LCD_DrawString(50, 130, "Distance: ");
-		 		LCD_DrawValue(150, 130, Distance);
-
-		 		// -----------------------------MPU6050------------------------------------------
-//		 		char buffer[10];
-//		 		if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == 1){
-//
-//		 		MPU6050_Read_Accel(&Ax, &Ay, &Az);
-//		 		MPU6050_Read_Gyro(&Gx, &Gy, &Gz);
-//
-//		 		sprintf(buffer, "%0.3f", Ax);
-//		 		LCD_DrawString(50, 80, buffer);
-//
-//		 		sprintf(buffer, "%0.3f", Ay);
-//		 		LCD_DrawString(50, 100, buffer);
-//
-//		 		sprintf(buffer, "%0.3f", Az);
-//		 		LCD_DrawString(50, 120, buffer);
-//
-//		 		printf(buffer, "%0.3f", Gx);
-//		 		LCD_DrawString(50, 140, buffer);
-//
-//		 		sprintf(buffer, "%0.3f", Gy);
-//		 		LCD_DrawString(50, 160, buffer);
-//
-//		 		sprintf(buffer, "%0.3f", Gz);
-//		 		LCD_DrawString(50, 180, buffer);
-
-//		 		}
-//		 		if(Distance < 10){
-//		 			if ((Gx > 0.12 || Gy > 0.12 || Gz > 0.12) && pause_second < 10) {
-//		 				accu_second += 1; // if the bowl is rotating, count the second
-//		 				LCD_DrawString(50, 110, "Eating time:");
-//		 				LCD_DrawValue(150, 120, accu_second);
-//		 			} else {
-//		 				LCD_DrawString(50, 110, "Pause time:");
-//		 				LCD_DrawValue(150, 120, pause_second);
-//		 				if(pause_second > 10) accu_second = 0; // if it stop for long time, reset the state
-//		 				else pause_second += 1;
-//		 			}
-//		 		}
-//		 		if(accu_second > 10)
-//		 			 if(pause_second > 60 && Distance > 20) Machine_state = 4;
-
-		 		if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_5) == SET){
-
+		 		if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7) == SET) eat = 1;// if the pet start to eat
+		 		if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7) == RESET && eat){
 		 			Machine_state = 4;
 		 			LCD_Clear (0, 0, 240, 320, 0xFFFF);
 		 		}
 		 		break;
-
-		 	case 4: // Done eating take photo
+	//------------- ----------------------------- // Done eating,  take photo with OV7725 and send to PC -------------------
+		 	case 4:
 		 		LCD_DrawValue(50, 130, countdown);
 		 		HAL_Delay(1000);
 		 		countdown--;
 		 		 if(!countdown)
-					 if (Ov7725_vsync == 2){
-						 FIFO_PREPARE;
-						 photo_data = ImagDisp();
-						 Ov7725_vsync = 0;
-						 Machine_state = 5;
+		 			if (Ov7725_vsync == 2) {
+		 				HAL_Delay(500);
+		 				FIFO_PREPARE;
+//		 				ImagDisp();
+		 				ImagDisp2(&huart1);
+		 				Ov7725_vsync = 0;
+						HAL_Delay(2000);
+						Machine_state = 0;
+						LCD_INIT();
+						if(alarm_set) alarm_set = 0;
 					}
-		 		 
-		 		break;
-		 	case 5: // TODO: Transmit the photo data to user
 
+		 		break;
+//
+		 }
+
+		 }else {
+			 if(display){
+				 LCD_Clear (0, 0, 240, 320, 0xFFFF);
+				 display = 0;
+			 }
+
+			 LCD_DrawString(50,60, "Not Activated");
 		 }
 
 
@@ -578,28 +674,28 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  sTime.Hours = 0x18;
-  sTime.Minutes = 0x53;
-  sTime.Seconds = 0x0;
-
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  DateToUpdate.WeekDay = RTC_WEEKDAY_MONDAY;
-  DateToUpdate.Month = RTC_MONTH_APRIL;
-  DateToUpdate.Date = 0x16;
-  DateToUpdate.Year = 0x24;
-
-  if (HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
+//  sTime.Hours = 0x14;
+//  sTime.Minutes = 0x45;
+//  sTime.Seconds = 0x30;
+//
+//  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//  DateToUpdate.WeekDay = RTC_WEEKDAY_SUNDAY;
+//  DateToUpdate.Month = RTC_MONTH_MAY;
+//  DateToUpdate.Date = 0x6;
+//  DateToUpdate.Year = 0x24;
+//
+//  if (HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BCD) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
 
   /** Enable the Alarm A
   */
-  sAlarm.AlarmTime.Hours = 0x00;
-  sAlarm.AlarmTime.Minutes = 0x00;
+  sAlarm.AlarmTime.Hours = 0x0;
+  sAlarm.AlarmTime.Minutes = 0x0;
   sAlarm.AlarmTime.Seconds = 0x0;
   sAlarm.Alarm = RTC_ALARM_A;
   if (HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
@@ -718,6 +814,72 @@ static void MX_TIM3_Init(uint16_t pulse)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 9600;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 9600;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -743,7 +905,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, camera_pinC4_Pin|camera_pinC5_Pin|camera_pinC6_Pin|camera_pinC7_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, camera_pi_Pin|camera_pinD3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, camera_pi_Pin|Weight_CLK_Pin|camera_pinD3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : Ultrasound_Echo_Pin */
   GPIO_InitStruct.Pin = Ultrasound_Echo_Pin;
@@ -764,11 +926,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(camer_pin_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : Clock_setting_key_Pin */
-  GPIO_InitStruct.Pin = Clock_setting_key_Pin;
+  /*Configure GPIO pin : PA0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(Clock_setting_key_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : camera_pin_Pin camera_pinA3_Pin */
   GPIO_InitStruct.Pin = camera_pin_Pin|camera_pinA3_Pin;
@@ -783,12 +945,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : External_key_Pin */
-  GPIO_InitStruct.Pin = External_key_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(External_key_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pins : camera_pinC4_Pin camera_pinC5_Pin */
   GPIO_InitStruct.Pin = camera_pinC4_Pin|camera_pinC5_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -797,9 +953,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : camera_pinB10_Pin camera_pinB11_Pin camera_pinB12_Pin camera_pinB13_Pin
-                           camera_pinB14_Pin camera_pinB15_Pin camera_pinB8_Pin camera_pinB9_Pin */
+                           camera_pinB14_Pin camera_pinB15_Pin PB7 camera_pinB8_Pin
+                           camera_pinB9_Pin */
   GPIO_InitStruct.Pin = camera_pinB10_Pin|camera_pinB11_Pin|camera_pinB12_Pin|camera_pinB13_Pin
-                          |camera_pinB14_Pin|camera_pinB15_Pin|camera_pinB8_Pin|camera_pinB9_Pin;
+                          |camera_pinB14_Pin|camera_pinB15_Pin|GPIO_PIN_7|camera_pinB8_Pin
+                          |camera_pinB9_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -817,6 +975,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Weight_DT_Pin */
+  GPIO_InitStruct.Pin = Weight_DT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Weight_DT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Weight_CLK_Pin */
+  GPIO_InitStruct.Pin = Weight_CLK_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Weight_CLK_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : camera_pinE1_Pin */
   GPIO_InitStruct.Pin = camera_pinE1_Pin;
@@ -901,6 +1072,39 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, SET);
 
 }
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+ {
+	if(Lindex > 198) Lindex = 1; // catch overflow
+	if(Pindex > 198) Pindex = 1; // catch overflow
+	if (huart -> Instance == USART1){
+			if (PCInt == 10){
+				PCMsg[Pindex] =  huart->Instance->DR;
+				Pindex++;
+				FromPCMsgComplete = 1;
+			} else {
+				PCMsg[Pindex] =  huart->Instance->DR;
+				Pindex++;
+			}
+		    HAL_UART_Receive_IT (&huart1, &PCInt, 1);
+
+	} else if(huart -> Instance == USART3){
+//			test = 1;
+			if (LoraInt == 10){
+				loraMsg[Lindex] =  huart->Instance->DR;
+				Lindex++;
+				FromLoraMsgComplete = 1;
+				} else {
+					loraMsg[Lindex] =  huart->Instance->DR;
+					Lindex++;
+					}
+			received = atoi (loraMsg);
+			if (!received) activated = 1;
+			else {activated = 0; display = 1;};
+
+			HAL_UART_Receive_IT (&huart3, &LoraInt, 1);
+	}
+ }
 /* USER CODE END 4 */
 
 /**
