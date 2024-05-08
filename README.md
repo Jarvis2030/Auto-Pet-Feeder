@@ -13,25 +13,30 @@ it included two parts: Pet feeder and GPS tracker, both are connected with exter
 <img width="450" alt="gps tracker pin assignment" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/d059984b-5757-46d1-ac13-08ab98a5ff6a">
 
 # Function List
-### Auto Pet feeder:
+
+## Auto Pet feeder:
 1. **Manual Mode**: Users can manually set the desired weight of food and distribute it using the control panel on the side of the feeder.
 2. **Timer Mode**: Users can set a real-time alarm, and when the specified time is reached, the system will automatically distribute the pre-set weight of food to the pet.
 3. **Sensor Integration**: The feeder is equipped with sensors such as an ultrasound distance sensor and MPU6050 to detect if the pet has approached the bowl and started eating. These sensors measure distance and bowl movement.
 4. **Photo Capture**: Once the feeder detects that the pet has finished eating and left, it captures a photo and modify it to BW, send it through usart to computer for display. This allows users to check the last eating situation.
 5. **GPS Integration**: The feeder incorporates a GPS sensor on the pet. If the feeder determines that the pet is not at home based on the location information, it will not trigger any alarms or distribute food. <br>
+
 ## Pet Tracker:
 1. **Location Tracking**: The tracker is attached to the pet, and it periodically sends the pet's location using a LoRa module.
 2. **Signal Monitoring**: The feeder continuously monitors the signal from the pet tracker. If the signal is lost or the location indicates that the pet is not at home, the feeder will not be activated.
 
+<img height="450" alt="Main board operation logic" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/ff3b109f-e0e2-43a8-af34-ead9d1715f52">
+<img height="450" alt="GPS tracker operation logic" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/7c194044-146b-4a12-bf3a-6f3da486ffcf">
+
 
 # External Components
-1. MPU6050
-2. HX711
-3. HC-SR04
-4. DX-LR01
-5. NEO-6M
+1. **MPU6050**:
+2. **HX711**:
+3. **HC-SR04**:
+4. **DX-LR01**:
+5. **NEO-6M**:
 
 # Communication protocol
-1. USART/UART
-2. I2C
-3. Internal clock Timer
+1. **USART/UART**:
+2. **I2C**:
+3. **Internal clock Timer**:
