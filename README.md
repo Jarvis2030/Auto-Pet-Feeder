@@ -30,13 +30,7 @@ it included two parts: Pet feeder and GPS tracker, both are connected with exter
 
 
 # External Components
-| MPU6050   | HX711      | HC-SR04  |DX-LR01 | NEO-6M  |
-| --------- |:----------:| --------:|-------:|--------:|
-| <img height="200" alt="MPU6050" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/98d105ca-1610-4d39-82cc-1c7c62c4f73d"> | <img height="200" alt="HX711" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/042aa603-a59a-4325-b613-8c6f243047a6"> | <img height="200" alt="HCSR04" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/6e5d6553-68a8-4977-b694-e432b62d145f">| <img width="200" alt="DXLR01" src="">||
-| col 2 is      | centered      |   $12 |
-| zebra stripes | are neat      |    $1 |
-
-# Communication protocol
-1. **USART/UART**:
-2. **I2C**:
-3. **Internal clock Timer**:
+| MPU6050   | HX711      | HC-SR04              |DX-LR01  | NEO-6M   |
+| --------- |:----------:| :-------------------:|:-------:|:--------:|
+| <img height="200" alt="MPU6050" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/98d105ca-1610-4d39-82cc-1c7c62c4f73d"> | <img height="200" alt="HX711" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/042aa603-a59a-4325-b613-8c6f243047a6"> | <img height="200" alt="HCSR04" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/6e5d6553-68a8-4977-b694-e432b62d145f">| <img width="200" alt="DXLR01" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/5c831647-ceab-48dc-bd56-7fa476a49f91)">|<img height="200" alt="NEO6M" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/aeb4cced-b46d-4270-a882-80e7aa73e55a">|
+| Gyro & Accelrator      | Weight sensor |  Ultrasound distance sesonr | LoRa | GPS tracker |
