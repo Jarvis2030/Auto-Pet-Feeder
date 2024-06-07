@@ -10,7 +10,7 @@ it included two parts: Pet feeder and GPS tracker, both are connected with exter
 # Pin assignment
 <img width="460" alt="Slave board pin assignment" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/e6f6cfc8-0b83-4dd6-8037-4ea275949f02">
 <img width="440" alt="Main board pin assignment" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/24631bb9-3846-4eb7-8004-ba159ca4137a">
-<img width="450" alt="gps tracker pin assignment" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/d059984b-5757-46d1-ac13-08ab98a5ff6a">
+
 
 # Function List
 
@@ -30,11 +30,11 @@ it included two parts: Pet feeder and GPS tracker, both are connected with exter
 
 
 # External Components
-1. **MPU6050**:
-2. **HX711**:
-3. **HC-SR04**:
-4. **DX-LR01**:
-5. **NEO-6M**:
+| MPU6050   | HX711      | HC-SR04  |DX-LR01 | NEO-6M  |
+| --------- |:----------:| --------:|-------:|--------:|
+| <img height="200" alt="MPU6050" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/98d105ca-1610-4d39-82cc-1c7c62c4f73d"> | <img height="200" alt="HX711" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/042aa603-a59a-4325-b613-8c6f243047a6"> | <img height="200" alt="HCSR04" src="https://github.com/Jarvis2030/Auto-Pet-Feeder/assets/77675271/6e5d6553-68a8-4977-b694-e432b62d145f">| <img width="200" alt="DXLR01" src="">||
+| col 2 is      | centered      |   $12 |
+| zebra stripes | are neat      |    $1 |
 
 # Communication protocol
 1. **USART/UART**:
